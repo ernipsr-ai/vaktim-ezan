@@ -1,4 +1,13 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import { BackHandler } from 'react-native';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { ayetSesAdresi } from './ayet-sesleri';
+import kuranTurkce from './kuran-turkce.json';
+const turkceSureAdi = (sure) => ({"1": "Fâtiha", "2": "Bakara", "3": "Âl-i İmrân", "4": "Nisâ", "5": "Mâide", "6": "En'âm", "7": "A'râf", "8": "Enfâl", "9": "Tevbe", "10": "Yûnus", "11": "Hûd", "12": "Yûsuf", "13": "Ra'd", "14": "İbrâhîm", "15": "Hicr", "16": "Nahl", "17": "İsrâ", "18": "Kehf", "19": "Meryem", "20": "Tâhâ", "21": "Enbiyâ", "22": "Hac", "23": "Mü'minûn", "24": "Nûr", "25": "Furkân", "26": "Şuarâ", "27": "Neml", "28": "Kasas", "29": "Ankebût", "30": "Rûm", "31": "Lokmân", "32": "Secde", "33": "Ahzâb", "34": "Sebe'", "35": "Fâtır", "36": "Yâsîn", "37": "Sâffât", "38": "Sâd", "39": "Zümer", "40": "Mü'min", "41": "Fussilet", "42": "Şûrâ", "43": "Zuhruf", "44": "Duhân", "45": "Câsiye", "46": "Ahkâf", "47": "Muhammed", "48": "Fetih", "49": "Hucurât", "50": "Kâf", "51": "Zâriyât", "52": "Tûr", "53": "Necm", "54": "Kamer", "55": "Rahmân", "56": "Vâkıa", "57": "Hadîd", "58": "Mücâdele", "59": "Haşr", "60": "Mümtehine", "61": "Saf", "62": "Cum'a", "63": "Münâfikûn", "64": "Tegâbün", "65": "Talâk", "66": "Tahrîm", "67": "Mülk", "68": "Kalem", "69": "Hâkka", "70": "Meâric", "71": "Nûh", "72": "Cin", "73": "Müzzemmil", "74": "Müddessir", "75": "Kıyâmet", "76": "İnsân", "77": "Mürselât", "78": "Nebe'", "79": "Nâziât", "80": "Abese", "81": "Tekvîr", "82": "İnfitâr", "83": "Mutaffifîn", "84": "İnşikâk", "85": "Bürûc", "86": "Târık", "87": "A'lâ", "88": "Gâşiye", "89": "Fecr", "90": "Beled", "91": "Şems", "92": "Leyl", "93": "Duhâ", "94": "İnşirâh", "95": "Tîn", "96": "Alak", "97": "Kadir", "98": "Beyyine", "99": "Zilzâl", "100": "Âdiyât", "101": "Kâria", "102": "Tekâsür", "103": "Asr", "104": "Hümeze", "105": "Fîl", "106": "Kureyş", "107": "Mâûn", "108": "Kevser", "109": "Kâfirûn", "110": "Nasr", "111": "Tebbet", "112": "İhlâs", "113": "Felak", "114": "Nâs"}[sure.number] || sure.englishName);
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import kuranArapca from './kuran-arapca.json';
+import sureler from './sureler.json';
+import { Magnetometer } from "expo-sensors";
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {SafeAreaView, View, Text, StyleSheet, ScrollView, Pressable, Alert, Platform} from 'react-native';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
@@ -6,16 +15,87 @@ import {Coordinates, CalculationMethod, PrayerTimes, Qibla} from 'adhan';
 import {StatusBar} from 'expo-status-bar';
 
 const CITIES = {
-  'İstanbul': [41.0082, 28.9784],
-  'Ankara': [39.9334, 32.8597],
-  'İzmir': [38.4237, 27.1428],
-  'Bursa': [40.1885, 29.0610],
-  'Antalya': [36.8969, 30.7133],
-  'Konya': [37.8746, 32.4932],
   'Adana': [37.0000, 35.3213],
-  'Trabzon': [41.0027, 39.7168],
+  'Adıyaman': [37.7648, 38.2786],
+  'Afyonkarahisar': [38.7507, 30.5567],
+  'Ağrı': [39.7191, 43.0503],
+  'Aksaray': [38.3687, 34.0370],
+  'Amasya': [40.6499, 35.8353],
+  'Ankara': [39.9334, 32.8597],
+  'Antalya': [36.8969, 30.7133],
+  'Ardahan': [41.1105, 42.7022],
+  'Artvin': [41.1828, 41.8183],
+  'Aydın': [37.8560, 27.8416],
+  'Balıkesir': [39.6484, 27.8826],
+  'Bartın': [41.6344, 32.3375],
+  'Batman': [37.8812, 41.1351],
+  'Bayburt': [40.2552, 40.2249],
+  'Bilecik': [40.0567, 30.0665],
+  'Bingöl': [38.8854, 40.4983],
+  'Bitlis': [38.4006, 42.1095],
+  'Bolu': [40.7395, 31.6116],
+  'Burdur': [37.7203, 30.2908],
+  'Bursa': [40.1885, 29.0610],
+  'Çanakkale': [40.1553, 26.4142],
+  'Çankırı': [40.6013, 33.6134],
+  'Çorum': [40.5506, 34.9556],
+  'Denizli': [37.7765, 29.0864],
+  'Diyarbakır': [37.9144, 40.2306],
+  'Düzce': [40.8438, 31.1565],
+  'Edirne': [41.6771, 26.5557],
+  'Elazığ': [38.6810, 39.2264],
+  'Erzincan': [39.7500, 39.5000],
+  'Erzurum': [39.9043, 41.2679],
+  'Eskişehir': [39.7667, 30.5256],
   'Gaziantep': [37.0662, 37.3833],
-  'Diyarbakır': [37.9144, 40.2306]
+  'Giresun': [40.9128, 38.3895],
+  'Gümüşhane': [40.4603, 39.4814],
+  'Hakkari': [37.5744, 43.7408],
+  'Hatay': [36.2021, 36.1606],
+  'Iğdır': [39.9237, 44.0450],
+  'Isparta': [37.7648, 30.5566],
+  'İstanbul': [41.0082, 28.9784],
+  'İzmir': [38.4237, 27.1428],
+  'Kahramanmaraş': [37.5858, 36.9371],
+  'Karabük': [41.2061, 32.6204],
+  'Karaman': [37.1759, 33.2287],
+  'Kars': [40.6013, 43.0975],
+  'Kastamonu': [41.3887, 33.7827],
+  'Kayseri': [38.7225, 35.4875],
+  'Kırıkkale': [39.8468, 33.5153],
+  'Kırklareli': [41.7351, 27.2252],
+  'Kırşehir': [39.1458, 34.1639],
+  'Kilis': [36.7184, 37.1212],
+  'Kocaeli': [40.7654, 29.9408],
+  'Konya': [37.8746, 32.4932],
+  'Kütahya': [39.4167, 29.9833],
+  'Malatya': [38.3552, 38.3095],
+  'Manisa': [38.6191, 27.4289],
+  'Mardin': [37.3212, 40.7245],
+  'Mersin': [36.8121, 34.6415],
+  'Muğla': [37.2153, 28.3636],
+  'Muş': [38.9462, 41.7539],
+  'Nevşehir': [38.6244, 34.7239],
+  'Niğde': [37.9667, 34.6833],
+  'Ordu': [40.9839, 37.8764],
+  'Osmaniye': [37.0742, 36.2478],
+  'Rize': [41.0201, 40.5234],
+  'Sakarya': [40.7569, 30.3781],
+  'Samsun': [41.2867, 36.3300],
+  'Siirt': [37.9333, 41.9500],
+  'Sinop': [42.0231, 35.1531],
+  'Sivas': [39.7477, 37.0179],
+  'Şanlıurfa': [37.1674, 38.7955],
+  'Şırnak': [37.4187, 42.4918],
+  'Tekirdağ': [40.9780, 27.5110],
+  'Tokat': [40.3167, 36.5500],
+  'Trabzon': [41.0027, 39.7168],
+  'Tunceli': [39.1079, 39.5401],
+  'Uşak': [38.6823, 29.4082],
+  'Van': [38.4891, 43.4089],
+  'Yalova': [40.6550, 29.2769],
+  'Yozgat': [39.8181, 34.8147],
+  'Zonguldak': [41.4564, 31.7987],
 };
 const NAMES = [['fajr','İmsak'],['sunrise','Güneş'],['dhuhr','Öğle'],['asr','İkindi'],['maghrib','Akşam'],['isha','Yatsı']];
 const fmt = d => d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
@@ -26,6 +106,138 @@ export default function App() {
   const [coords,setCoords] = useState(CITIES['İstanbul']);
   const [locLabel,setLocLabel] = useState('Şehir seçimi');
   const [tab,setTab] = useState('Vakitler');
+  const [selectedSure,setSelectedSure] = useState(null);
+  const manuelSehir = useRef(false);
+
+  useEffect(() => {
+    let aktif = true;
+
+    async function konumuOtomatikBul() {
+      try {
+        const izin = await Location.getForegroundPermissionsAsync();
+        if (izin.status !== 'granted') return;
+
+        const yer = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced
+        });
+        if (!aktif) return;
+
+        setCoords([yer.coords.latitude, yer.coords.longitude]);
+        setLocLabel('Mevcut konum');
+
+        const adres = await Location.reverseGeocodeAsync({
+          latitude: yer.coords.latitude,
+          longitude: yer.coords.longitude
+        });
+        if (aktif && adres[0]?.city) {
+          setCity(adres[0].city);
+        }
+      } catch (hata) {
+        console.warn('Otomatik konum:', hata);
+      }
+    }
+
+    konumuOtomatikBul();
+    return () => { aktif = false; };
+  }, []);
+
+
+
+  useEffect(() => {
+    const abonelik = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (selectedSure !== null) {
+        setSelectedSure(null);
+        return true;
+      }
+      if (tab !== 'Vakitler') {
+        setTab('Vakitler');
+        return true;
+      }
+      return false;
+    });
+    return () => abonelik.remove();
+  }, [tab, selectedSure]);
+
+
+  const audioPlayer = useAudioPlayer(null);
+  const audioStatus = useAudioPlayerStatus(audioPlayer);
+  const [calinanSure, setCalinanSure] = useState(null);
+  const [aktifAyet, setAktifAyet] = useState(null);
+  const [ayetTakipAcik, setAyetTakipAcik] = useState(false);
+  const kuranScrollRef = useRef(null);
+  const ayetKonumlari = useRef({});
+
+  const ayetDinle = (sureNo, ayetNo) => {
+    const adres = ayetSesAdresi(sureNo, ayetNo);
+    setAktifAyet(ayetNo);
+    setCalinanSure(sureNo);
+    audioPlayer.replace({ uri: adres });
+    audioPlayer.play();
+  };
+
+
+
+  const sureDinle = (sure) => {
+    const numara = sureler.find(x => x.englishName === sure)?.number;
+    if (!numara) return;
+
+    const adres = `https://cdn.islamic.network/quran/audio-surah/128/ar.alafasy/${numara}.mp3`;
+    audioPlayer.pause();
+    setCalinanSure(numara);
+    audioPlayer.replace({ uri: adres });
+    audioPlayer.play();
+  };
+
+
+  useEffect(() => {
+    if (!ayetTakipAcik || !audioStatus.didJustFinish) return;
+
+    const sureNo = calinanSure;
+    const toplamAyet = sureler.find(
+      s => s.number === sureNo
+    )?.numberOfAyahs;
+
+    if (!toplamAyet || !aktifAyet) return;
+
+    if (aktifAyet < toplamAyet) {
+      ayetDinle(sureNo, aktifAyet + 1);
+    } else {
+      setAyetTakipAcik(false);
+      setAktifAyet(null);
+    }
+  }, [audioStatus.didJustFinish]);
+
+
+  useEffect(() => {
+    if (!ayetTakipAcik || !aktifAyet) return;
+
+    const konum = ayetKonumlari.current[aktifAyet];
+
+    if (konum !== undefined) {
+      kuranScrollRef.current?.scrollTo({
+        y: Math.max(0, konum + 250),
+        animated: true
+      });
+    }
+  }, [aktifAyet, ayetTakipAcik]);
+
+  const [arapcaBoyut, setArapcaBoyut] = useState(27);
+  const [tesbihCount,setTesbihCount] = useState(0);
+
+  useEffect(() => {
+    AsyncStorage.getItem('vaktim_tesbih')
+      .then(value => {
+        if (value !== null) setTesbihCount(Number(value));
+      })
+      .catch(console.warn);
+  }, []);
+
+  const saveTesbihCount = (value) => {
+    setTesbihCount(value);
+    AsyncStorage.setItem('vaktim_tesbih', String(value))
+      .catch(console.warn);
+  };
+
   const [now,setNow] = useState(new Date());
   const [notifications,setNotifications] = useState(false);
   const [heading,setHeading] = useState(null);
@@ -74,31 +286,59 @@ export default function App() {
 
   async function chooseCity(){
     const names=Object.keys(CITIES);
-    Alert.alert('Şehir seç', 'Namaz vakitleri için şehir seç:', names.map(n=>({text:n,onPress:()=>{setCity(n);setCoords(CITIES[n]);setLocLabel('Şehir seçimi');}})).concat([{text:'İptal',style:'cancel'}]));
+    Alert.alert('Şehir seç', 'Namaz vakitleri için şehir seç:', names.map(n=>({text:n,onPress:()=>{manuelSehir.current=true;setCity(n);setCoords(CITIES[n]);setLocLabel('Şehir seçimi');}})).concat([{text:'İptal',style:'cancel'}]));
   }
 
   async function toggleNotifications(){
     try {
-      const {status}=await Notifications.requestPermissionsAsync();
-      if(status!=='granted'){Alert.alert('Bildirim izni kapalı','Telefon ayarlarından VAKTİM bildirimlerine izin verebilirsin.');return;}
+      const {status} = await Notifications.requestPermissionsAsync();
+      if(status !== 'granted') {
+        Alert.alert('Bildirim izni gerekli', 'Lütfen bildirim izni verin.');
+        return;
+      }
+      const coordinates = new Coordinates(coords[0], coords[1]);
+      const params = CalculationMethod.Turkey();
+      const prayerNames = NAMES.filter(([key]) => key !== 'sunrise');
+      const now = new Date();
+      let count = 0;
       await Notifications.cancelAllScheduledNotificationsAsync();
-      const times=prayerData.items.filter(x=>x.key!=='sunrise');
-      for(const p of times){
-        const d=new Date(p.time);
-        if(d>now) await Notifications.scheduleNotificationAsync({
-          content:{title:`${p.label} vakti`,body:`${city} için ${p.label} namazı vakti girdi.`,sound:true},
-          trigger:{type:Notifications.SchedulableTriggerInputTypes.DATE,date:d}
-        });
+      for(let day = 0; day < 30; day++) {
+        const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + day);
+        const times = new PrayerTimes(coordinates, date, params);
+        for(const [key, label] of prayerNames) {
+          const prayerTime = times[key];
+          if(prayerTime > now) {
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: `${label} vakti`,
+                body: `${city} için ${label} namazı vakti girdi.`,
+                sound: true
+              },
+              trigger: {type: Notifications.SchedulableTriggerInputTypes.DATE, date: prayerTime}
+            });
+            count++;
+          }
+        }
       }
       setNotifications(true);
-      Alert.alert('Bildirimler hazır','Bugünün kalan namaz vakitleri için bildirimler kuruldu. Yarın için uygulamayı yeniden açıp bildirimleri yenile.');
-    } catch(e){Alert.alert('Hata','Bildirimler kurulamadı.');}
+      Alert.alert('Bildirimler hazır', `${count} namaz vakti bildirimi planlandı.`);
+    } catch(e) {
+      Alert.alert('Hata', String(e));
+    }
   }
 
+  useEffect(() => {
+    Magnetometer.setUpdateInterval(200);
+    const subscription = Magnetometer.addListener(({ x, y }) => {
+      const angle = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+      setHeading(angle);
+    });
+    return () => subscription.remove();
+  }, []);
   const qibla = Qibla(new Coordinates(coords[0],coords[1]));
-  const tabs=['Vakitler','Kıble','Dualar'];
+  const tabs=['Vakitler','Kıble','Dualar','Tesbih','Takvim','Kur’an'];
   return <SafeAreaView style={s.safe}><StatusBar style="light"/>
-    <ScrollView contentContainerStyle={s.page}>
+    <ScrollView ref={kuranScrollRef} contentContainerStyle={s.page}>
       <View style={s.header}><View><Text style={s.brand}>VAKTİM</Text><Text style={s.sub}>Vaktin huzur olsun</Text></View><Pressable style={s.cityBtn} onPress={chooseCity}><Text style={s.cityText}>⌖  {city} ▾</Text></Pressable></View>
       <View style={s.dateBox}><Text style={s.date}>{dateText(now)}</Text><Text style={s.hijri}>Namaz vakitleri · Türkiye hesaplama yöntemi</Text></View>
       <View style={s.hero}>
@@ -106,14 +346,179 @@ export default function App() {
         <Text style={s.nextTime}>{fmt(nextPrayer.time)}</Text><Text style={s.countLabel}>Kalan süre</Text><Text style={s.count}>{countdown}</Text>
         <View style={s.moon}><Text style={s.moonText}>☾</Text></View>
       </View>
-      <View style={s.tabs}>{tabs.map(t=><Pressable key={t} onPress={()=>setTab(t)} style={[s.tab,tab===t&&s.tabOn]}><Text style={[s.tabText,tab===t&&s.tabTextOn]}>{t}</Text></Pressable>)}</View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flexGrow:0}} contentContainerStyle={s.tabs}>{tabs.map(t=><Pressable key={t} onPress={()=>setTab(t)} style={[s.tab,tab===t&&s.tabOn]}><Text style={[s.tabText,tab===t&&s.tabTextOn]}>{t}</Text></Pressable>)}</ScrollView>
       {tab==='Vakitler'&&<View style={s.card}>
         <Text style={s.section}>BUGÜNÜN VAKİTLERİ</Text>
         {prayerData.items.map((p,i)=><View key={p.key} style={[s.prayerRow,i===0&&{borderTopWidth:0}]}><View style={s.prayerLeft}><Text style={s.prayerIcon}>{['☀','◉','☼','◒','☾','✦'][i]}</Text><Text style={s.prayerName}>{p.label}</Text></View><Text style={[s.prayerTime,p.key===nextPrayer.label?.toLowerCase()&&s.gold]}>{fmt(p.time)}</Text></View>)}
         <Text style={s.note}>Vakitler seçilen konuma ve Türkiye hesaplama yöntemine göre hesaplanır.</Text>
       </View>}
-      {tab==='Kıble'&&<View style={s.card}><Text style={s.section}>KIBLE YÖNÜ</Text><View style={s.compass}><Text style={s.compassN}>K</Text><Text style={s.needle}>➤</Text><Text style={s.kaaba}>▣</Text></View><Text style={s.qiblaText}>Kıble açısı: {Math.round(qibla)}°</Text><Text style={s.note}>Bu sürümde kıble açısı kuzeye göre gösterilir. Pusula yönünü doğru kullanmak için telefonun sensör kalibrasyonu gerekir.</Text></View>}
-      {tab==='Dualar'&&<View style={s.card}><Text style={s.section}>GÜNLÜK DUA VE ZİKİRLER</Text>{[['Sabah zikri','سُبْحَانَ اللَّهِ وَبِحَمْدِهِ','Allah’ı hamdiyle tesbih ederim.'],['Tesbih','سُبْحَانَ اللَّهِ','Allah’ı her türlü noksanlıktan tenzih ederim.'],['Hamd','الْحَمْدُ لِلَّهِ','Hamd Allah’a mahsustur.'],['Tekbir','اللَّهُ أَكْبَرُ','Allah en büyüktür.']].map((d,i)=><View key={i} style={s.dua}><Text style={s.duaTitle}>{d[0]}</Text><Text style={s.arabic}>{d[1]}</Text><Text style={s.note}>{d[2]}</Text></View>)}</View>}
+      {tab==='Kıble'&&<View style={s.card}><Text style={s.section}>KIBLE YÖNÜ</Text><View style={s.compass}><Text style={s.compassN}>K</Text><Text style={[s.needle,{transform:[{rotate:`${(qibla-(heading??0)+315+360)%360}deg`}]}]}>➤</Text><Text style={s.kaaba}>▣</Text></View><Text style={s.qiblaText}>Kıble açısı: {Math.round(qibla)}°</Text><Text style={s.note}>Bu sürümde kıble açısı kuzeye göre gösterilir. Pusula yönünü doğru kullanmak için telefonun sensör kalibrasyonu gerekir.</Text></View>}
+      {tab==='Kur’an'&&<View style={s.card}>
+          <Text style={s.section}>KUR'AN-I KERİM</Text>
+          {selectedSure!==null&&<Pressable onPress={()=>setSelectedSure(null)}>
+            <Text style={{color:'#E7C77B',marginVertical:15}}>← Sure listesine dön</Text>
+          </Pressable>}
+          {selectedSure===null?
+            sureler.map((sure,i)=>
+              <Pressable key={i} onPress={()=>setSelectedSure(sure.englishName)}
+                style={{paddingVertical:14,borderBottomWidth:1,borderBottomColor:'#29354D'}}>
+                <Text style={{color:'#E7C77B',fontSize:17}}>{sure.number}. {turkceSureAdi(sure)} ({sure.numberOfAyahs} ayet) ›</Text>
+              </Pressable>
+            ):
+            <View>
+              <Text style={{color:'#E7C77B',fontSize:25,textAlign:'center',marginVertical:25}}>
+                {turkceSureAdi(sureler.find(x=>x.englishName===selectedSure)||{englishName:selectedSure})} Suresi
+              </Text>
+              
+        <Pressable
+          onPress={() => {
+            const numara = sureler.find(x => x.englishName === selectedSure)?.number;
+                if (calinanSure !== numara) {
+                  sureDinle(selectedSure);
+                } else if (audioStatus.playing) {
+                  audioPlayer.pause();
+                } else if (audioStatus.currentTime > 0) {
+                  audioPlayer.play();
+                } else {
+                  sureDinle(selectedSure);
+                }
+          }}
+          style={{
+            backgroundColor:'#E7C77B',
+            padding:16,
+            borderRadius:14,
+            marginVertical:18,
+            alignItems:'center'
+          }}>
+          <Text style={{color:'#101A30',fontSize:18,fontWeight:'bold'}}>
+            {calinanSure === sureler.find(x => x.englishName === selectedSure)?.number && audioStatus.playing ? '⏸ Duraklat' :
+              audioStatus.currentTime > 0 ? '▶ Devam Et' :
+              '▶ Sureyi Dinle'}
+          </Text>
+        </Pressable>
+
+        
+              <Pressable
+                onPress={() => {
+                  const no = sureler.find(
+                    x => x.englishName === selectedSure
+                  )?.number;
+                  if (!no) return;
+
+                  if (ayetTakipAcik) {
+                    audioPlayer.pause();
+                    setAyetTakipAcik(false);
+                    setAktifAyet(null);
+                  } else {
+                    setAyetTakipAcik(true);
+                    ayetDinle(no, 1);
+                  }
+                }}
+                style={{
+                  backgroundColor: '#315C47',
+                  padding: 16,
+                  borderRadius: 14,
+                  marginVertical: 12,
+                  alignItems: 'center'
+                }}
+              >
+                <Text style={{
+                  color: '#FFFFFF',
+                  fontSize: 17,
+                  fontWeight: 'bold'
+                }}>
+                  {ayetTakipAcik
+                    ? '⏹ Ayet Takibini Durdur'
+                    : '🎧 Ayet Takibini Başlat'}
+                </Text>
+              </Pressable>
+
+
+<View style={{flexDirection:'row',justifyContent:'center',alignItems:'center',gap:20,marginVertical:18}}>
+  <Pressable onPress={() => setArapcaBoyut(b => Math.max(20,b-2))}
+    style={{backgroundColor:'#E7C77B',padding:12,borderRadius:12}}>
+    <Text style={{fontSize:20,color:'#102038',fontWeight:'bold'}}>A−</Text>
+  </Pressable>
+  <Text style={{color:'#E7C77B',fontSize:16}}>Arapça Yazı</Text>
+  <Pressable onPress={() => setArapcaBoyut(b => Math.min(42,b+2))}
+    style={{backgroundColor:'#E7C77B',padding:12,borderRadius:12}}>
+    <Text style={{fontSize:20,color:'#102038',fontWeight:'bold'}}>A+</Text>
+  </Pressable>
+</View>
+{(kuranArapca[String(
+                sureler.find(x=>x.englishName===selectedSure)?.number
+              )] || []).map(ayet=>
+                <View
+                    key={ayet.number}
+                    onLayout={(event) => {
+                      ayetKonumlari.current[ayet.number] =
+                        event.nativeEvent.layout.y;
+                    }}
+                    style={{
+                      backgroundColor:
+                        ayetTakipAcik && aktifAyet === ayet.number
+                          ? '#315C47'
+                          : 'transparent',
+                  paddingVertical:18,
+                  borderBottomWidth:1,
+                  borderBottomColor:'#29354D'
+                }}>
+                  <Text style={{
+                    color:'#E7C77B',
+                    fontSize:14,
+                    marginBottom:12
+                  }}>Ayet {ayet.number}
+                      {ayetTakipAcik && aktifAyet === ayet.number ? ' ☝️ Okunuyor' : ''}
+                    </Text>
+                  <Text style={{
+                    color:'#FFFFFF',
+                    fontSize: arapcaBoyut,
+lineHeight: arapcaBoyut * 1.9,
+                    textAlign:'right',
+                    writingDirection:'rtl',
+                  paddingHorizontal:16
+                  }}>{ayet.text}</Text>
+<Text style={{
+  color:'#E7C77B',
+  fontSize:16,
+  lineHeight:27,
+  marginTop:12,
+  textAlign:'left'
+}}>
+  {kuranTurkce[String(sureler.find(x=>x.englishName===selectedSure)?.number)]?.find(m=>m.number===ayet.number)?.text || ''}
+</Text>
+                </View>
+              )}
+            </View>
+          }
+        </View>}
+        {tab==='Takvim'&&<View style={s.card}>
+      <Text style={s.section}>HİCRİ TAKVİM</Text>
+      <Text style={{color:'#E7C77B',fontSize:25,textAlign:'center',marginTop:25}}>
+        {new Intl.DateTimeFormat('tr-TR-u-ca-islamic', {
+          day:'numeric',month:'long',year:'numeric'
+        }).format(now)}
+      </Text>
+      <Text style={{color:'#FFFFFF',fontSize:17,textAlign:'center',marginTop:18}}>
+        {dateText(now)}
+      </Text>
+      <Text style={s.note}>
+        Hicri tarihler kullanılan takvim yöntemine ve bölgesel gözleme göre
+        bir gün farklılık gösterebilir.
+      </Text>
+    </View>}
+    {tab==='Tesbih'&&<View style={s.card}>
+      <Text style={s.section}>DİJİTAL TESBİH</Text>
+      <Text style={{color:'#E7C77B',fontSize:64,textAlign:'center',marginVertical:30}}>{tesbihCount}</Text>
+      <Pressable onPress={()=>saveTesbihCount(tesbihCount+1)}
+        style={{backgroundColor:'#E7C77B',padding:20,borderRadius:18,alignItems:'center',marginBottom:15}}>
+        <Text style={{color:'#090F20',fontSize:20,fontWeight:'bold'}}>ZİKİR SAY</Text>
+      </Pressable>
+      <Pressable onPress={()=>saveTesbihCount(0)}>
+        <Text style={{color:'#FFFFFF',textAlign:'center',padding:12}}>Sıfırla</Text>
+      </Pressable>
+    </View>}
+    {tab==='Dualar'&&<View style={s.card}><Text style={s.section}>GÜNLÜK DUA VE ZİKİRLER</Text>{[['Sabah zikri','سُبْحَانَ اللَّهِ وَبِحَمْدِهِ','Allah’ı hamdiyle tesbih ederim.'],['Tesbih','سُبْحَانَ اللَّهِ','Allah’ı her türlü noksanlıktan tenzih ederim.'],['Hamd','الْحَمْدُ لِلَّهِ','Hamd Allah’a mahsustur.'],['Tekbir','اللَّهُ أَكْبَرُ','Allah en büyüktür.']].map((d,i)=><View key={i} style={s.dua}><Text style={s.duaTitle}>{d[0]}</Text><Text style={s.arabic}>{d[1]}</Text><Text style={s.note}>{d[2]}</Text></View>)}</View>}
       <Pressable style={s.locationBtn} onPress={useLocation}><Text style={s.locationText}>◎  Mevcut konumumu kullan</Text></Pressable>
       <Pressable style={[s.notifyBtn,notifications&&s.notifyOn]} onPress={toggleNotifications}><Text style={s.notifyText}>{notifications?'✓  Bildirim izni açık · Vakitleri yenile':'♢  Ezan vakti bildirimlerini aç'}</Text></Pressable>
       <Text style={s.footer}>VAKTİM · Huzurla hatırla</Text>

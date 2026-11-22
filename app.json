@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "android": {
+      "versionCode": 1,
       "package": "com.vaktim.ezan",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
@@ -15,7 +16,14 @@
       ]
     },
     "plugins": [
-      "expo-notifications"
-    ]
+      "expo-notifications",
+      "expo-audio",
+      "expo-asset"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "0b61c597-7186-4bc2-a48b-ba015780ad2f"
+      }
+    }
   }
 }
