@@ -1,47 +1,133 @@
-<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+android:layout_width="match_parent"
+android:layout_height="match_parent"
+android:orientation="vertical"
+android:padding="12dp"
+android:background="@drawable/vaktim_widget_bg">
+
+<TextView
+android:id="@+id/widget_title"
+android:layout_width="match_parent"
+android:layout_height="wrap_content"
+android:text="☪ VAKTİM"
+android:textColor="#E7C77B"
+android:textSize="20sp"
+android:textStyle="bold"/>
+
+<TextView
+android:id="@+id/widget_city"
+android:layout_width="match_parent"
+android:layout_height="wrap_content"
+android:textColor="#FFFFFF"
+android:textSize="14sp"/>
+
+<TextView
+android:id="@+id/widget_prayer"
+android:layout_width="match_parent"
+android:layout_height="wrap_content"
+android:textColor="#E7C77B"
+android:textSize="18sp"/>
+
+<TextView
+android:id="@+id/widget_countdown"
+android:layout_width="match_parent"
+android:layout_height="wrap_content"
+android:text="--:--"
+android:textColor="#FFFFFF"
+android:textSize="24sp"
+android:textStyle="bold"/>
+
+<Chronometer
+android:id="@+id/widget_timer"
+android:layout_width="match_parent"
+android:layout_height="wrap_content"
+android:textColor="#E7C77B"
+android:textSize="22sp"
+android:countDown="true"/>
+
+
 <LinearLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="#101D33"
-    android:padding="16dp">
+android:layout_width="match_parent"
+android:layout_height="wrap_content"
+android:orientation="horizontal">
 
-    <TextView
-        android:id="@+id/widget_title"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="☪ VAKTİM"
-        android:textColor="#E7C77B"
-        android:textSize="20sp"
-        android:textStyle="bold" />
+<TextView
+android:id="@+id/widget_vakit_0"
+android:layout_width="0dp"
+android:layout_height="wrap_content"
+android:layout_weight="1"
+android:gravity="center"
+android:padding="4dp"
+android:text="İmsak --:--"
+android:textColor="#FFFFFF"
+android:textSize="12sp"/>
 
-    <TextView
-        android:id="@+id/widget_city"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Konum belirleniyor..."
-        android:textColor="#FFFFFF"
-        android:textSize="14sp"
-        android:layout_marginTop="8dp" />
+<TextView
+android:id="@+id/widget_vakit_1"
+android:layout_width="0dp"
+android:layout_height="wrap_content"
+android:layout_weight="1"
+android:gravity="center"
+android:padding="4dp"
+android:text="Güneş --:--"
+android:textColor="#FFFFFF"
+android:textSize="12sp"/>
 
-    <TextView
-        android:id="@+id/widget_prayer"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Sıradaki namaz vakti"
-        android:textColor="#E7C77B"
-        android:textSize="18sp"
-        android:layout_marginTop="12dp" />
+<TextView
+android:id="@+id/widget_vakit_2"
+android:layout_width="0dp"
+android:layout_height="wrap_content"
+android:layout_weight="1"
+android:gravity="center"
+android:padding="4dp"
+android:text="Öğle --:--"
+android:textColor="#FFFFFF"
+android:textSize="12sp"/>
+</LinearLayout>
+<LinearLayout
+android:layout_width="match_parent"
+android:layout_height="wrap_content"
+android:orientation="horizontal">
 
-    <TextView
-        android:id="@+id/widget_countdown"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="--:--"
-        android:textColor="#FFFFFF"
-        android:textSize="28sp"
-        android:textStyle="bold"
-        android:layout_marginTop="6dp" />
+<TextView
+android:id="@+id/widget_vakit_3"
+android:layout_width="0dp"
+android:layout_height="wrap_content"
+android:layout_weight="1"
+android:gravity="center"
+android:padding="4dp"
+android:text="İkindi --:--"
+android:textColor="#FFFFFF"
+android:textSize="12sp"/>
 
+<TextView
+android:id="@+id/widget_vakit_4"
+android:layout_width="0dp"
+android:layout_height="wrap_content"
+android:layout_weight="1"
+android:gravity="center"
+android:padding="4dp"
+android:text="Akşam --:--"
+android:textColor="#FFFFFF"
+android:textSize="12sp"/>
+
+<TextView
+android:id="@+id/widget_vakit_5"
+android:layout_width="0dp"
+android:layout_height="wrap_content"
+android:layout_weight="1"
+android:gravity="center"
+android:padding="4dp"
+android:text="Yatsı --:--"
+android:textColor="#FFFFFF"
+android:textSize="12sp"/>
+</LinearLayout>
+<TextView
+android:id="@+id/widget_settings"
+android:layout_width="match_parent"
+android:layout_height="wrap_content"
+android:gravity="end"
+android:text="⚙ Ayarlar"
+android:textColor="#E7C77B"
+android:textSize="14sp"/>
 </LinearLayout>

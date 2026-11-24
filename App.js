@@ -1,3 +1,4 @@
+import { Linking } from 'react-native';
 import { Modal, TextInput } from 'react-native';
 import { BackHandler } from 'react-native';
 import { NativeModules } from 'react-native';
@@ -110,6 +111,24 @@ export default function App() {
   const [tab,setTab] = useState('Vakitler');
   const [selectedSure,setSelectedSure] = useState(null);
   const manuelSehir = useRef(false);
+
+  useEffect(() => {
+    const ayarlariAc = (url) => {
+      if (url === 'vaktim://ayarlar') {
+        setSelectedSure(null);
+        setTab('Ayarlar');
+      }
+    };
+
+    Linking.getInitialURL().then(ayarlariAc).catch(console.warn);
+
+    const abonelik = Linking.addEventListener('url', ({url}) => {
+      ayarlariAc(url);
+    });
+
+    return () => abonelik.remove();
+  }, []);
+
   const [sehirAcik,setSehirAcik] = useState(false);
   const [sehirAra,setSehirAra] = useState('');
 
@@ -288,12 +307,30 @@ export default function App() {
       ? fmt(nextPrayer.time)
       : '--:--';
 
+    const takvim = [];
+    for (let i = 0; i < 30; i++) {
+      const gun = new Date(now);
+      gun.setDate(gun.getDate() + i);
+      const pt = new PrayerTimes(
+        new Coordinates(coords[0], coords[1]),
+        gun,
+        CalculationMethod.Turkey()
+      );
+      NAMES.forEach(([key,label]) => {
+        takvim.push({
+          label,
+          time: pt[key].getTime()
+        });
+      });
+    }
+
     NativeModules.WidgetData.updateWidget(
       city || 'İstanbul',
       vakit,
-      saat
+      saat,
+      JSON.stringify(takvim)
     );
-  }, [city, nextPrayer]);
+  }, [city, coords, now.toDateString(), nextPrayer?.time?.getTime()]);
 
   const countdown = useMemo(()=>{
     let s=Math.max(0,Math.floor((nextPrayer.time-now)/1000));
