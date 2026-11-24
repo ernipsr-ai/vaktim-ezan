@@ -1,4 +1,6 @@
+import { Modal, TextInput } from 'react-native';
 import { BackHandler } from 'react-native';
+import { NativeModules } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { ayetSesAdresi } from './ayet-sesleri';
 import kuranTurkce from './kuran-turkce.json';
@@ -108,19 +110,31 @@ export default function App() {
   const [tab,setTab] = useState('Vakitler');
   const [selectedSure,setSelectedSure] = useState(null);
   const manuelSehir = useRef(false);
+  const [sehirAcik,setSehirAcik] = useState(false);
+  const [sehirAra,setSehirAra] = useState('');
+
 
   useEffect(() => {
     let aktif = true;
 
     async function konumuOtomatikBul() {
       try {
+        const kayit = await AsyncStorage.getItem('vaktim_sehir');
+        if (!aktif || manuelSehir.current) return;
+        if (kayit && CITIES[kayit]) {
+          manuelSehir.current = true;
+          setCity(kayit);
+          setCoords(CITIES[kayit]);
+          setLocLabel('Şehir seçimi');
+          return;
+        }
         const izin = await Location.getForegroundPermissionsAsync();
         if (izin.status !== 'granted') return;
 
         const yer = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced
         });
-        if (!aktif) return;
+        if (!aktif || manuelSehir.current) return;
 
         setCoords([yer.coords.latitude, yer.coords.longitude]);
         setLocLabel('Mevcut konum');
@@ -129,7 +143,7 @@ export default function App() {
           latitude: yer.coords.latitude,
           longitude: yer.coords.longitude
         });
-        if (aktif && adres[0]?.city) {
+        if (aktif && !manuelSehir.current && adres[0]?.city) {
           setCity(adres[0].city);
         }
       } catch (hata) {
@@ -266,6 +280,21 @@ export default function App() {
     return {label:'İmsak',time:pt.fajr};
   },[prayerData,now,coords]);
 
+
+  useEffect(() => {
+    if (!nextPrayer || !NativeModules.WidgetData) return;
+    const vakit = nextPrayer.label || 'Namaz';
+    const saat = nextPrayer.time
+      ? fmt(nextPrayer.time)
+      : '--:--';
+
+    NativeModules.WidgetData.updateWidget(
+      city || 'İstanbul',
+      vakit,
+      saat
+    );
+  }, [city, nextPrayer]);
+
   const countdown = useMemo(()=>{
     let s=Math.max(0,Math.floor((nextPrayer.time-now)/1000));
     const h=String(Math.floor(s/3600)).padStart(2,'0'); s%=3600;
@@ -278,6 +307,8 @@ export default function App() {
       const {status}=await Location.requestForegroundPermissionsAsync();
       if(status!=='granted'){Alert.alert('Konum izni gerekli','Konum izni vermezsen şehir listesinden seçim yapabilirsin.');return;}
       const l=await Location.getCurrentPositionAsync({});
+      await AsyncStorage.removeItem('vaktim_sehir');
+      manuelSehir.current=false;
       setCoords([l.coords.latitude,l.coords.longitude]); setLocLabel('Mevcut konum');
       const rev=await Location.reverseGeocodeAsync({latitude:l.coords.latitude,longitude:l.coords.longitude});
       if(rev[0]?.city) setCity(rev[0].city);
@@ -285,9 +316,10 @@ export default function App() {
   }
 
   async function chooseCity(){
-    const names=Object.keys(CITIES);
-    Alert.alert('Şehir seç', 'Namaz vakitleri için şehir seç:', names.map(n=>({text:n,onPress:()=>{manuelSehir.current=true;setCity(n);setCoords(CITIES[n]);setLocLabel('Şehir seçimi');}})).concat([{text:'İptal',style:'cancel'}]));
+    setSehirAra('');
+    setSehirAcik(true);
   }
+
 
   async function toggleNotifications(){
     try {
@@ -336,9 +368,25 @@ export default function App() {
     return () => subscription.remove();
   }, []);
   const qibla = Qibla(new Coordinates(coords[0],coords[1]));
-  const tabs=['Vakitler','Kıble','Dualar','Tesbih','Takvim','Kur’an'];
+  const tabs=['Vakitler','Kıble','Dualar','Tesbih','Takvim','Kur’an','Ayarlar'];
   return <SafeAreaView style={s.safe}><StatusBar style="light"/>
-    <ScrollView ref={kuranScrollRef} contentContainerStyle={s.page}>
+    
+<Modal visible={sehirAcik} animationType="slide" onRequestClose={()=>setSehirAcik(false)}>
+<SafeAreaView style={{flex:1,backgroundColor:'#090F20',padding:20}}>
+<Text style={{color:'#E7C77B',fontSize:26,fontWeight:'bold',marginTop:30}}>Şehir seç</Text>
+<TextInput value={sehirAra} onChangeText={setSehirAra} placeholder="Şehir ara..." placeholderTextColor="#8994AA" style={{color:'#FFFFFF',backgroundColor:'#18233B',padding:15,borderRadius:12,marginVertical:15}}/>
+<ScrollView keyboardShouldPersistTaps="handled">
+{Object.keys(CITIES).filter(n=>n.toLocaleLowerCase('tr-TR').includes(sehirAra.toLocaleLowerCase('tr-TR'))).map(n=>
+<Pressable key={n} onPress={()=>{manuelSehir.current=true;AsyncStorage.setItem('vaktim_sehir',n).catch(console.warn);setCity(n);setCoords(CITIES[n]);setLocLabel('Şehir seçimi');setSehirAcik(false);}} style={{padding:16,borderBottomWidth:1,borderColor:'#34425D'}}>
+<Text style={{color:'#FFFFFF',fontSize:18}}>{n}</Text>
+</Pressable>)}
+</ScrollView>
+<Pressable onPress={()=>setSehirAcik(false)} style={{padding:18}}>
+<Text style={{color:'#E7C77B',textAlign:'center',fontSize:18}}>Kapat</Text>
+</Pressable>
+</SafeAreaView>
+</Modal>
+<ScrollView ref={kuranScrollRef} contentContainerStyle={s.page}>
       <View style={s.header}><View><Text style={s.brand}>VAKTİM</Text><Text style={s.sub}>Vaktin huzur olsun</Text></View><Pressable style={s.cityBtn} onPress={chooseCity}><Text style={s.cityText}>⌖  {city} ▾</Text></Pressable></View>
       <View style={s.dateBox}><Text style={s.date}>{dateText(now)}</Text><Text style={s.hijri}>Namaz vakitleri · Türkiye hesaplama yöntemi</Text></View>
       <View style={s.hero}>
@@ -519,7 +567,15 @@ lineHeight: arapcaBoyut * 1.9,
       </Pressable>
     </View>}
     {tab==='Dualar'&&<View style={s.card}><Text style={s.section}>GÜNLÜK DUA VE ZİKİRLER</Text>{[['Sabah zikri','سُبْحَانَ اللَّهِ وَبِحَمْدِهِ','Allah’ı hamdiyle tesbih ederim.'],['Tesbih','سُبْحَانَ اللَّهِ','Allah’ı her türlü noksanlıktan tenzih ederim.'],['Hamd','الْحَمْدُ لِلَّهِ','Hamd Allah’a mahsustur.'],['Tekbir','اللَّهُ أَكْبَرُ','Allah en büyüktür.']].map((d,i)=><View key={i} style={s.dua}><Text style={s.duaTitle}>{d[0]}</Text><Text style={s.arabic}>{d[1]}</Text><Text style={s.note}>{d[2]}</Text></View>)}</View>}
-      <Pressable style={s.locationBtn} onPress={useLocation}><Text style={s.locationText}>◎  Mevcut konumumu kullan</Text></Pressable>
+      
+{tab==='Ayarlar' && <View style={s.card}>
+<Text style={s.section}>KONUM AYARLARI</Text>
+<Text style={{color:'#FFFFFF',fontSize:18,marginVertical:15}}>Seçili şehir: {city}</Text>
+<Pressable style={s.locationBtn} onPress={chooseCity}>
+<Text style={s.locationText}>81 İl - Manuel şehir seç</Text>
+</Pressable>
+</View>}
+<Pressable style={s.locationBtn} onPress={useLocation}><Text style={s.locationText}>◎  Mevcut konumumu kullan</Text></Pressable>
       <Pressable style={[s.notifyBtn,notifications&&s.notifyOn]} onPress={toggleNotifications}><Text style={s.notifyText}>{notifications?'✓  Bildirim izni açık · Vakitleri yenile':'♢  Ezan vakti bildirimlerini aç'}</Text></Pressable>
       <Text style={s.footer}>VAKTİM · Huzurla hatırla</Text>
     </ScrollView>

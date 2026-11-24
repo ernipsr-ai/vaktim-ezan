@@ -13,6 +13,11 @@ class VaktimWidget : AppWidgetProvider() {
         manager: AppWidgetManager,
         widgetIds: IntArray
     ) {
+        val prefs = context.getSharedPreferences("vaktim_widget", Context.MODE_PRIVATE)
+        val city = prefs.getString("city", "Konum bekleniyor") ?: "Konum bekleniyor"
+        val prayer = prefs.getString("prayer", "Namaz vakitleri hazırlanıyor") ?: ""
+        val time = prefs.getString("time", "--:--") ?: "--:--"
+
         for (id in widgetIds) {
             val views = RemoteViews(
                 context.packageName,
@@ -21,13 +26,14 @@ class VaktimWidget : AppWidgetProvider() {
 
             views.setTextViewText(
                 R.id.widget_city,
-                "VAKTİM - Konum bekleniyor"
+                city
             )
             views.setTextViewText(
                 R.id.widget_prayer,
-                "Namaz vakitleri hazırlanıyor"
+                prayer
             )
 
+            views.setTextViewText(R.id.widget_countdown, time)
             val intent = Intent(context, MainActivity::class.java)
             val pendingIntent = PendingIntent.getActivity(
                 context,
