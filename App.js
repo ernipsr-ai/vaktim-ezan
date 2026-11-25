@@ -17,6 +17,7 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {SafeAreaView, View, Text, StyleSheet, ScrollView, Pressable, Alert, Platform} from 'react-native';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
+let vaktimBildirimKilit = false;
 import {Coordinates, CalculationMethod, PrayerTimes, Qibla} from 'adhan';
 import {StatusBar} from 'expo-status-bar';
 
@@ -361,7 +362,36 @@ export default function App() {
   }
 
 
-  async function toggleNotifications(){
+  
+  async function vaktimBildirimTesti(){
+    try {
+      const izin = await Notifications.requestPermissionsAsync();
+      if (!izin.granted) {
+        Alert.alert('Bildirim izni gerekli');
+        return;
+      }
+      const zaman = new Date(Date.now() + 60000);
+      await Notifications.scheduleNotificationAsync({
+        identifier: 'vaktim-test-bildirimi',
+        content: {
+          title: 'VAKTİM Bildirim Testi',
+          body: 'Beklenen saat: ' + zaman.toLocaleTimeString('tr-TR'),
+          sound: true
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: zaman
+        }
+      });
+      Alert.alert('Test hazır', 'Ekranı kapat. Beklenen saat: ' + zaman.toLocaleTimeString('tr-TR'));
+    } catch(e) {
+      Alert.alert('Test hatası', String(e));
+    }
+  }
+
+async function toggleNotifications(){
+    if (vaktimBildirimKilit) return;
+    vaktimBildirimKilit = true;
     try {
       const {status} = await Notifications.requestPermissionsAsync();
       if(status !== 'granted') {
@@ -381,6 +411,7 @@ export default function App() {
           const prayerTime = times[key];
           if(prayerTime > now) {
             await Notifications.scheduleNotificationAsync({
+          identifier: `vaktim-${key}-${prayerTime.getTime()}`,
               content: {
                 title: `${label} vakti`,
                 body: `${city} için ${label} namazı vakti girdi.`,
@@ -396,6 +427,8 @@ export default function App() {
       Alert.alert('Bildirimler hazır', `${count} namaz vakti bildirimi planlandı.`);
     } catch(e) {
       Alert.alert('Hata', String(e));
+    } finally {
+      vaktimBildirimKilit = false;
     }
   }
 
@@ -657,7 +690,7 @@ lineHeight: arapcaBoyut * 1.9,
 </Pressable>
 </View>}
 <Pressable style={s.locationBtn} onPress={useLocation}><Text style={s.locationText}>◎  Mevcut konumumu kullan</Text></Pressable>
-      <Pressable style={[s.notifyBtn,notifications&&s.notifyOn]} onPress={toggleNotifications}><Text style={s.notifyText}>{notifications?'✓  Bildirim izni açık · Vakitleri yenile':'♢  Ezan vakti bildirimlerini aç'}</Text></Pressable>
+      <Pressable style={[s.notifyBtn,notifications&&s.notifyOn]} onPress={toggleNotifications} onLongPress={vaktimBildirimTesti}><Text style={s.notifyText}>{notifications?'✓  Bildirim izni açık · Vakitleri yenile':'♢  Ezan vakti bildirimlerini aç'}</Text></Pressable>
       
 {tab==='Menü' && <View style={s.card}>
   <Text style={s.section}>TÜM HİZMETLER</Text>
