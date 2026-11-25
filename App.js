@@ -277,6 +277,42 @@ export default function App() {
 
   const [now,setNow] = useState(new Date());
   const [notifications,setNotifications] = useState(false);
+  const [bildirimAyar,setBildirimAyar] = useState({kapali:[],erken:0,ses:'default'});
+  const ezanOnizleme = useAudioPlayer(null);
+
+  function ezanDinle(key){
+    try {
+      ezanOnizleme.pause();
+      ezanOnizleme.replace(key==='ezan1'
+        ? {uri:'ezan_1'}
+        : {uri:'ezan_2'});
+      ezanOnizleme.play();
+    } catch(e){
+      Alert.alert('Ses hatasi',String(e));
+    }
+  }
+
+  const [bildirimAyarHazir,setBildirimAyarHazir] = useState(false);
+
+  useEffect(()=>{
+    AsyncStorage.getItem('vaktim_bildirim_ayar')
+      .then(v=>{
+        if(v){
+      const ayar = JSON.parse(v);
+      if(['ezan1','ezan2'].includes(ayar.ses)) ayar.ses='default';
+      setBildirimAyar(ayar);
+    }
+      })
+      .catch(console.warn)
+      .finally(()=>setBildirimAyarHazir(true));
+  },[]);
+
+  function bildirimAyarKaydet(yeni){
+    setBildirimAyar(yeni);
+    AsyncStorage.setItem('vaktim_bildirim_ayar',JSON.stringify(yeni))
+      .catch(console.warn);
+  }
+
   const [heading,setHeading] = useState(null);
 
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),1000); return ()=>clearInterval(t); },[]);
@@ -362,24 +398,69 @@ export default function App() {
   }
 
 
-  
-  async function vaktimBildirimTesti(){
+
+
+
+  const vaktimMakamlar = {
+    fajr:{ad:'Sabah',makam:'Sabâ',dosya:'ezan_saba.mp3',hazir:false},
+    dhuhr:{ad:'Öğle',makam:'Uşşak',dosya:'ezan_ussak.mp3',hazir:false},
+    asr:{ad:'İkindi',makam:'Rast',dosya:'ezan_rast.mp3',hazir:false},
+    maghrib:{ad:'Akşam',makam:'Segâh',dosya:'ezan_segah.mp3',hazir:false},
+    isha:{ad:'Yatsı',makam:'Hicaz',dosya:'ezan_hicaz.mp3',hazir:false}
+  };
+
+  async function vaktimSesKanali(secim,vakit){
+    const makam = vaktimMakamlar[vakit];
+    if(secim==='makam' && makam?.hazir){
+      const channelId = 'vaktim-makam-v1-'+vakit;
+      await Notifications.setNotificationChannelAsync(channelId,{
+        name:makam.ad+' - '+makam.makam,
+        sound:makam.dosya,
+        importance:Notifications.AndroidImportance.HIGH,
+        enableVibrate:true
+      });
+      return {channelId,sound:makam.dosya};
+    }
+
+    const sesler = {
+      default:['Standart bildirim','default'],
+      ezan1:['Ezan sesi 1','ezan_1.ogg'],
+      ezan2:['Ezan sesi 2','ezan_2.ogg'],
+      sessiz:['Sessiz bildirim',null]
+    };
+    const key = sesler[secim] ? secim : 'default';
+    const [name,sound] = sesler[key];
+    const channelId = 'vaktim-ses-v1-'+key;
+    await Notifications.setNotificationChannelAsync(channelId,{
+      name,
+      sound,
+      importance:key==='sessiz'
+        ? Notifications.AndroidImportance.LOW
+        : Notifications.AndroidImportance.HIGH,
+      enableVibrate:key!=='sessiz'
+    });
+    return {channelId,sound:sound || false};
+  }
+
+async function vaktimBildirimTesti(){
     try {
       const izin = await Notifications.requestPermissionsAsync();
       if (!izin.granted) {
         Alert.alert('Bildirim izni gerekli');
         return;
       }
+      const ses = await vaktimSesKanali(bildirimAyar.ses);
       const zaman = new Date(Date.now() + 60000);
       await Notifications.scheduleNotificationAsync({
         identifier: 'vaktim-test-bildirimi',
         content: {
           title: 'VAKTİM Bildirim Testi',
           body: 'Beklenen saat: ' + zaman.toLocaleTimeString('tr-TR'),
-          sound: true
+          sound: ses.sound
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
+          channelId: ses.channelId,
           date: zaman
         }
       });
@@ -389,50 +470,74 @@ export default function App() {
     }
   }
 
+
 async function toggleNotifications(){
-    if (vaktimBildirimKilit) return;
-    vaktimBildirimKilit = true;
-    try {
-      const {status} = await Notifications.requestPermissionsAsync();
-      if(status !== 'granted') {
-        Alert.alert('Bildirim izni gerekli', 'Lütfen bildirim izni verin.');
-        return;
-      }
-      const coordinates = new Coordinates(coords[0], coords[1]);
-      const params = CalculationMethod.Turkey();
-      const prayerNames = NAMES.filter(([key]) => key !== 'sunrise');
-      const now = new Date();
-      let count = 0;
-      await Notifications.cancelAllScheduledNotificationsAsync();
-      for(let day = 0; day < 30; day++) {
-        const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + day);
-        const times = new PrayerTimes(coordinates, date, params);
-        for(const [key, label] of prayerNames) {
-          const prayerTime = times[key];
-          if(prayerTime > now) {
-            await Notifications.scheduleNotificationAsync({
-          identifier: `vaktim-${key}-${prayerTime.getTime()}`,
-              content: {
-                title: `${label} vakti`,
-                body: `${city} için ${label} namazı vakti girdi.`,
-                sound: true
-              },
-              trigger: {type: Notifications.SchedulableTriggerInputTypes.DATE, date: prayerTime}
-            });
-            count++;
-          }
+  if(vaktimBildirimKilit || !bildirimAyarHazir) return;
+  vaktimBildirimKilit = true;
+  try {
+    const {status} = await Notifications.requestPermissionsAsync();
+    if(status !== 'granted'){
+      Alert.alert('Bildirim izni gerekli');
+      return;
+    }
+    const coordinates = new Coordinates(coords[0],coords[1]);
+    const params = CalculationMethod.Turkey();
+    const prayerNames = NAMES.filter(([key]) =>
+      key !== 'sunrise' && !bildirimAyar.kapali.includes(key));
+    const now = new Date();
+    let count = 0;
+
+    const anaSesler = {};
+    for(const [key] of prayerNames){
+      anaSesler[key] = await vaktimSesKanali(bildirimAyar.ses,key);
+    }
+
+    const erkenSes = await vaktimSesKanali(bildirimAyar.ses==='sessiz'?'sessiz':'default');
+    await Notifications.cancelAllScheduledNotificationsAsync();
+
+    for(let day=0; day<30; day++){
+      const date = new Date(now.getFullYear(),now.getMonth(),now.getDate()+day);
+      const times = new PrayerTimes(coordinates,date,params);
+
+      for(const [key,label] of prayerNames){
+        const prayerTime = times[key];
+        const anaSes = anaSesler[key];
+        const offsets = bildirimAyar.erken > 0
+          ? [0,bildirimAyar.erken] : [0];
+
+        for(const dakika of offsets){
+          const zaman = new Date(prayerTime.getTime()-dakika*60000);
+          if(zaman <= new Date()) continue;
+
+          await Notifications.scheduleNotificationAsync({
+            identifier: `vaktim-${key}-${prayerTime.getTime()}-${dakika}`,
+            content:{
+              title:dakika===0 ? `${label} vakti` : `${label} yaklasiyor`,
+              body:dakika===0
+                ? `${city} için ${label} namazı vakti girdi.`
+                : `${label} namazına ${dakika} dakika kaldı.`,
+              sound:dakika===0?anaSes.sound:erkenSes.sound
+            },
+            trigger:{
+              type:Notifications.SchedulableTriggerInputTypes.DATE,
+              channelId:dakika===0?anaSes.channelId:erkenSes.channelId,
+              date:zaman
+            }
+          });
+          count++;
         }
       }
-      setNotifications(true);
-      Alert.alert('Bildirimler hazır', `${count} namaz vakti bildirimi planlandı.`);
-    } catch(e) {
-      Alert.alert('Hata', String(e));
-    } finally {
-      vaktimBildirimKilit = false;
     }
+    setNotifications(true);
+    Alert.alert('Bildirimler güncellendi',`${count} bildirim planlandı.`);
+  } catch(e){
+    Alert.alert('Hata',String(e));
+  } finally {
+    vaktimBildirimKilit = false;
   }
+}
 
-  useEffect(() => {
+useEffect(() => {
     if (tab !== 'Kıble') return;
     Magnetometer.setUpdateInterval(200);
     const subscription = Magnetometer.addListener(({ x, y }) => {
@@ -442,7 +547,7 @@ async function toggleNotifications(){
     return () => subscription.remove();
   }, [tab]);
   const qibla = Qibla(new Coordinates(coords[0],coords[1]));
-  
+
 const [vaktimAcilisHazir,setVaktimAcilisHazir] = useState(false);
 
 const hizliSureListesi = useMemo(() => {
@@ -450,7 +555,7 @@ const hizliSureListesi = useMemo(() => {
   return sureler.map((sure,i)=>
               <Pressable key={i} onPress={()=>setSelectedSure(sure.englishName)}
                 style={{paddingVertical:14,borderBottomWidth:1,borderBottomColor:'#29354D'}}>
-                
+
 <View style={{flexDirection:'row',alignItems:'center',paddingVertical:8}}>
   <View style={{width:38,height:38,borderRadius:12,backgroundColor:'#E7C77B22',alignItems:'center',justifyContent:'center'}}>
     <Text style={{color:'#E7C77B',fontWeight:'bold'}}>{sure.number}</Text>
@@ -484,7 +589,7 @@ onLoadEnd={()=>setVaktimAcilisHazir(true)}
       }}
     />
 <StatusBar style="light"/>
-    
+
 <Modal visible={sehirAcik} animationType="slide" onRequestClose={()=>setSehirAcik(false)}>
 <SafeAreaView style={{flex:1,backgroundColor:'#090F20',padding:20}}>
 <Text style={{color:'#E7C77B',fontSize:26,fontWeight:'bold',marginTop:30}}>Şehir seç</Text>
@@ -526,7 +631,7 @@ onLoadEnd={()=>setVaktimAcilisHazir(true)}
               <Text style={{color:'#E7C77B',fontSize:25,textAlign:'center',marginVertical:25}}>
                 {turkceSureAdi(sureler.find(x=>x.englishName===selectedSure)||{englishName:selectedSure})} Suresi
               </Text>
-              
+
         <Pressable
           onPress={() => {
             const numara = sureler.find(x => x.englishName === selectedSure)?.number;
@@ -554,7 +659,7 @@ onLoadEnd={()=>setVaktimAcilisHazir(true)}
           </Text>
         </Pressable>
 
-        
+
               <Pressable
                 onPress={() => {
                   const no = sureler.find(
@@ -666,7 +771,7 @@ lineHeight: arapcaBoyut * 1.9,
     </View>}
     {tab==='Tesbih'&&<View style={s.card}>
       <Text style={s.section}>DİJİTAL TESBİH</Text>
-      
+
 <View style={{alignSelf:'center',width:180,height:180,borderRadius:90,borderWidth:3,borderColor:'#E7C77B',backgroundColor:'#142640DD',alignItems:'center',justifyContent:'center',marginVertical:24}}>
   <Text style={{color:'#E7C77B',fontSize:56,fontWeight:'bold'}}>{tesbihCount}</Text>
   <Text style={{color:'#AAB9CF',fontSize:14}}>Zikir sayisi</Text>
@@ -681,7 +786,7 @@ lineHeight: arapcaBoyut * 1.9,
       </Pressable>
     </View>}
     {tab==='Dualar'&&<View style={s.card}><Text style={s.section}>GÜNLÜK DUA VE ZİKİRLER</Text>{[['Sabah zikri','سُبْحَانَ اللَّهِ وَبِحَمْدِهِ','Allah’ı hamdiyle tesbih ederim.'],['Tesbih','سُبْحَانَ اللَّهِ','Allah’ı her türlü noksanlıktan tenzih ederim.'],['Hamd','الْحَمْدُ لِلَّهِ','Hamd Allah’a mahsustur.'],['Tekbir','اللَّهُ أَكْبَرُ','Allah en büyüktür.']].map((d,i)=><View key={i} style={s.dua}><Text style={s.duaTitle}>{d[0]}</Text><Text style={s.arabic}>{d[1]}</Text><Text style={s.note}>{d[2]}</Text></View>)}</View>}
-      
+
 {tab==='Ayarlar' && <View style={s.card}>
 <Text style={s.section}>KONUM AYARLARI</Text>
 <Text style={{color:'#FFFFFF',fontSize:18,marginVertical:15}}>Seçili şehir: {city}</Text>
@@ -690,8 +795,65 @@ lineHeight: arapcaBoyut * 1.9,
 </Pressable>
 </View>}
 <Pressable style={s.locationBtn} onPress={useLocation}><Text style={s.locationText}>◎  Mevcut konumumu kullan</Text></Pressable>
-      <Pressable style={[s.notifyBtn,notifications&&s.notifyOn]} onPress={toggleNotifications} onLongPress={vaktimBildirimTesti}><Text style={s.notifyText}>{notifications?'✓  Bildirim izni açık · Vakitleri yenile':'♢  Ezan vakti bildirimlerini aç'}</Text></Pressable>
-      
+
+<View style={s.card}>
+  <Text style={s.section}>BİLDİRİM AYARLARI</Text>
+  {NAMES.filter(([key])=>key!=='sunrise').map(([key,label])=>{
+    const acik = !bildirimAyar.kapali.includes(key);
+    return <Pressable key={key}
+      disabled={!bildirimAyarHazir}
+      onPress={()=>bildirimAyarKaydet({
+        ...bildirimAyar,
+        kapali:acik
+          ? [...bildirimAyar.kapali,key]
+          : bildirimAyar.kapali.filter(k=>k!==key)
+      })}
+      style={{flexDirection:'row',alignItems:'center',paddingVertical:16,borderBottomWidth:1,borderColor:'#34445D'}}>
+      <Ionicons name="notifications-outline" size={23} color="#E7C77B"/>
+      <Text style={{flex:1,color:'#FFFFFF',fontSize:17,marginLeft:12}}>{label}</Text>
+      <View style={{width:46,height:27,borderRadius:20,padding:4,backgroundColor:acik?'#D4AF37':'#44516A',alignItems:acik?'flex-end':'flex-start'}}>
+        <View style={{width:19,height:19,borderRadius:10,backgroundColor:'#FFFFFF'}}/>
+      </View>
+    </Pressable>;
+  })}
+
+
+<Text style={{color:'#E7C77B',fontSize:17,fontWeight:'bold',marginTop:20,marginBottom:12}}>VAKTİNE UYGUN EZAN</Text>
+{Object.entries(vaktimMakamlar).map(([key,m])=>
+  <View key={key} style={{flexDirection:'row',alignItems:'center',paddingVertical:16,borderBottomWidth:1,borderColor:'#34445D'}}>
+    <Ionicons name="musical-notes-outline" size={25} color="#E7C77B"/>
+    <View style={{flex:1,marginLeft:14}}>
+      <Text style={{color:'#FFFFFF',fontSize:17}}>{m.ad} ezanı</Text>
+      <Text style={{color:'#E7C77B',marginTop:4}}>{m.makam} makamı</Text>
+    </View>
+    <Ionicons name="headset-outline" size={25} color="#E7C77B"/>
+  </View>
+)}
+<Text style={{color:'#B6C3D8',marginVertical:12}}>Makam kayıtları henüz hazır değil.</Text>
+{[['default','Standart bildirim'],['sessiz','Sessiz bildirim']].map(([key,label])=>
+  <Pressable key={key}
+    disabled={!bildirimAyarHazir}
+    onPress={()=>bildirimAyarKaydet({...bildirimAyar,ses:key})}
+    style={{flexDirection:'row',alignItems:'center',paddingVertical:14}}>
+    <Ionicons name={(bildirimAyar.ses||'default')===key?'radio-button-on':'radio-button-off'} size={24} color="#E7C77B"/>
+    <Text style={{color:'#FFFFFF',marginLeft:12,fontSize:16}}>{label}</Text>
+  </Pressable>
+)}
+<Text style={{color:'#E7C77B',fontWeight:'bold',marginTop:20,marginBottom:12}}>ERKEN HATIRLATMA</Text>
+  <View style={{flexDirection:'row',flexWrap:'wrap'}}>
+    {[0,5,10,15,30].map(d=>
+      <Pressable key={d}
+        disabled={!bildirimAyarHazir}
+        onPress={()=>bildirimAyarKaydet({...bildirimAyar,erken:d})}
+        style={{padding:12,margin:4,borderRadius:12,borderWidth:1,borderColor:'#D4AF37',backgroundColor:bildirimAyar.erken===d?'#D4AF37':'#102039'}}>
+        <Text style={{color:bildirimAyar.erken===d?'#09162C':'#FFFFFF',fontWeight:'bold'}}>{d===0?'Kapalı':d+' dk'}</Text>
+      </Pressable>
+    )}
+  </View>
+  <Text style={{color:'#B6C3D8',marginTop:12}}>Değişikliklerden sonra vakitleri yenileyin.</Text>
+</View>
+<Pressable style={[s.notifyBtn,notifications&&s.notifyOn]} onPress={toggleNotifications} onLongPress={vaktimBildirimTesti}><Text style={s.notifyText}>{notifications?'✓  Bildirim izni açık · Vakitleri yenile':'♢  Ezan vakti bildirimlerini aç'}</Text></Pressable>
+
 {tab==='Menü' && <View style={s.card}>
   <Text style={s.section}>TÜM HİZMETLER</Text>
   {[
@@ -710,7 +872,7 @@ lineHeight: arapcaBoyut * 1.9,
 </View>}
 <Text style={s.footer}>VAKTİM · Huzurla hatırla</Text>
     </ScrollView>
-  
+
 <View style={{flexDirection:'row',backgroundColor:'#101D33',borderTopWidth:1,borderColor:'#806B42',paddingVertical:10,paddingHorizontal:4}}>
   {[
     [tabs[0],'time-outline','Vakitler'],
